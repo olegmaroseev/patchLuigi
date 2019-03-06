@@ -1,0 +1,183 @@
+diff --git a/scheduler.py b/scheduler.py
+index cf11812..0a3cf24 100644
+--- a/scheduler.py
++++ b/scheduler.py
+@@ -38,6 +38,7 @@ import os
+ import re
+ import time
+ import uuid
++import subprocess
+ 
+ from luigi import six
+ 
+@@ -52,6 +53,21 @@ from luigi.parameter import ParameterVisibility
+ 
+ from luigi.metrics import MetricsCollectors
+ 
++
++#my_code
++
++import luigi
++import time
++import string
++import random
++
++def randomword(length):
++   letters = string.ascii_lowercase
++   return ''.join(random.choice(letters) for i in range(length))
++
++
++#my_code
++
+ logger = logging.getLogger(__name__)
+ 
+ UPSTREAM_RUNNING = 'UPSTREAM_RUNNING'
+@@ -1014,6 +1030,14 @@ class Scheduler(object):
+         if self._config.pause_enabled:
+             self._paused = False
+ 
++    @rpc_method()
++    def addwf(self, inp, wor):
++        wfList = inp.replace(" ", "").split(",")
++
++        for wf in wfList:
++            subprocess.Popen("python C:\\Users\\o.maroseev\\DjandoProjects\\LuigiTest\\" + wf +".py" + " " + str(wor))
++        return {'test': wor}
++
+     @rpc_method()
+     def update_resources(self, **resources):
+         if self._resources is None:
+diff --git a/static/visualiser/index.html b/static/visualiser/index.html
+index 9e957f2..834670a 100644
+--- a/static/visualiser/index.html
++++ b/static/visualiser/index.html
+@@ -243,6 +243,10 @@
+             {{/workerList}}
+         </script>
+ 
++        <script type="text/template" name="flowTemplate">
++          <h1>Здесь будет форма добавления</h1>
++        </script>
++
+         <script type="text/template" name="resourceTemplate">
+         <div class="modal fade" id="setResourcesModal" tabindex="-1" role="dialog" aria-labelledby="setResourcesLabel">
+           <div class="modal-dialog" role="document">
+@@ -385,6 +389,7 @@
+                                 <li><a class="js-nav-link" href="#tab=graph" data-tab="dependencyGraph">Dependency Graph</a></li>
+                                 <li><a class="js-nav-link" href="#tab=workers" data-tab="workerList">Workers</a></li>
+                                 <li><a class="js-nav-link" href="#tab=resource" data-tab="resourceList">Resources</a></li>
++                                <li><a class="js-nav-link" href="#tab=flow" data-tab="flowList">Add workflow</a></li>
+                             </ul>
+                             <form class="navbar-form navbar-right" id="pause-form">
+                             </form>
+@@ -547,17 +552,25 @@
+             </section>
+             <section id="workerList" class="container-fluid tab-pane active">
+             </section>
+-            <section id="resourceList" class="tab-pane">
+-            </section>
+-        </div> <!-- /.tab-content -->
+-        </div> <!-- /.content -->
+-        </div> <!-- /.content-wrapper -->
++            <section id="flowList" class="tab-pane">
++                <h1>Form for adding new workflow</h1>
++                <form class="form-inline" id="addNewFlow">
++                          <input id="js-flow-id" type="text" class="form-control" placeholder="New workflow" style="width:  80%; ">
++                          <input id="js-flow-id-2" type="text" class="form-control" value="5" style="width:  10%; ">
++                          <button type="submit" class="btn btn-default form-control buttonAddWF">Add new workflow</button>
++              </form>
++              <br>
++              <a href="#"> See Task List</a>
++              </section>
++          </div> <!-- /.tab-content -->
++          </div> <!-- /.content -->
++          </div> <!-- /.content-wrapper -->
+ 
+-        </div> <!-- /.wrapper -->
++          </div> <!-- /.wrapper -->
+ 
+ 
+-        <script>
+-            visualiserApp(new LuigiAPI("../../api"));
+-        </script>
+-    </body>
+-</html>
++          <script>
++              visualiserApp(new LuigiAPI("../../api"));
++          </script>
++      </body>
++  </html>
+diff --git a/static/visualiser/js/luigi.js b/static/visualiser/js/luigi.js
+index 4f105bf..a34b71d 100644
+--- a/static/visualiser/js/luigi.js
++++ b/static/visualiser/js/luigi.js
+@@ -188,6 +188,13 @@ var LuigiAPI = (function() {
+         jsonRPC(this.urlRoot + '/unpause');
+     };
+ 
++    LuigiAPI.prototype.addWF = function(input, workers, callback) {
++        var data ={inp: input, wor: workers} ;
++        jsonRPC(this.urlRoot + '/addwf', data, function(response) {
++            callback(response.response.test);
++        });
++    };
++
+     LuigiAPI.prototype.isPaused = function(callback) {
+         jsonRPC(this.urlRoot + "/is_paused", {}, function(response) {
+             callback(!response.response.paused);
+diff --git a/static/visualiser/js/visualiserApp.js b/static/visualiser/js/visualiserApp.js
+index a954986..b4053a1 100644
+--- a/static/visualiser/js/visualiserApp.js
++++ b/static/visualiser/js/visualiserApp.js
+@@ -482,6 +482,8 @@ function visualiserApp(luigi) {
+ 
+         if (fragmentQuery.tab == "workers") {
+             switchTab("workerList");
++        } else if  (fragmentQuery.tab == "flows") {
++            switchTab("flowList");
+         } else if (fragmentQuery.tab == "resources") {
+             expandResources(fragmentQuery.resources);
+             switchTab("resourceList");
+@@ -1025,7 +1027,7 @@ function visualiserApp(luigi) {
+         return $('.resource-box.in').toArray().map(function (val) { return val.dataset.resource; });
+     }
+ 
+-    function expandResources(resources) {        
++    function expandResources(resources) {
+         if (resources === undefined) {
+             resources = [];
+         } else {
+@@ -1401,6 +1403,16 @@ function visualiserApp(luigi) {
+             updateResourceCount(resource, n);
+             $event.preventDefault();
+         });
++
++        $('.buttonAddWF').on('click', function( $event) {
++            $event.preventDefault();
++            input = $("#addNewFlow input").val();
++            workers = $("#addNewFlow #js-flow-id-2").val();
++            luigi.addWF(input, workers , function(res) {
++              console.log(res);
++            });
++        });
++
+         $('.js-nav-link').click(function(e) {
+             // User followed tab from navigation link. Copy state from fields to hash.
+             e.preventDefault();
+@@ -1462,6 +1474,8 @@ function visualiserApp(luigi) {
+                 state.visType = $('input[name=vis-type]:checked').val();
+             } else if (tabId == 'workerList') {
+                 state.tab = 'workers';
++            } else if (tabId == 'flowList') {
++                state.tab = 'flows';
+             } else if (tabId == 'resourceList') {
+                 state.resources = JSON.stringify(expandedResources());
+                 state.tab = 'resources';
+@@ -1470,6 +1484,7 @@ function visualiserApp(luigi) {
+             location.hash = '#' + URI.buildQuery(state);
+         });
+ 
++        setInterval(updateTasks, 5000);
+         processHashChange();
+     });
+ }
